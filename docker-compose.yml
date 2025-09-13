@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:16
+    env_file: .env 
+    ports:
+      - "5432:5432" 
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init:/docker-entrypoint-initdb.d:ro
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: ./services/api-service
+      dockerfile: Dockerfile
+    container_name: link-service
+    env_file: .env 
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+
+
+  migrations-service:
+    build:
+      context: ./services/migrations-service
+    env_file: .env 
+    depends_on:
+      - db
+
+  
+  redirect:
+    build:
+      context: ./services/redirect-service
+      dockerfile: Dockerfile
+    env_file: .env
+    ports: ["8081:8081"]
+    depends_on:
+      - api
+volumes:
+  pgdata:
