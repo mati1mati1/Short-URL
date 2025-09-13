@@ -86,3 +86,105 @@ Request body:
   "target_url": "https://example.com/long",
   "expires_at": "2025-12-31T23:59:59Z"
 }
+```
+Response:
+```json
+{
+  "slug": "Ab3xYz7",
+  "short_url": "https://s.rt/Ab3xYz7",
+  "expires_at": "2025-12-31T23:59:59Z",
+  "is_active": true
+}
+```
+
+**Endpoint:** `GET /:slug`
+
+- **302 Found** → `Location: target_url`
+- **404 Not Found** → if slug doesn’t exist
+- **410 Gone** → if expired
+
+---
+
+## 7. Rate Limiting
+
+- **Create API:**  
+  30 requests / 10 minutes per IP (basic Redis counter)
+
+- **Redirect API:**  
+  Unrestricted for MVP, with basic protection against slug flood
+
+---
+
+## 8. Observability
+
+### Metrics
+- `redirect_requests_total`
+- `redirect_latency_ms` (histogram)
+- `redis_hit_ratio`
+- `db_lookups_total`
+- `redirect_errors_total`
+- `create_requests_total`
+
+### Logs
+- Structured logs with:
+  - `request_id`
+  - `slug`
+  - `status`
+  - `cache="hit|miss"`
+
+### Tracing
+- Spans for redirect path:
+  - `redis.get`
+  - `db.select`
+  - `redis.set`
+
+---
+
+## 9. Deployment
+
+- **Containerized services:**  
+  `redirect`, `api`, `redis`, `postgres`
+
+- **Ingress:**  
+  Nginx or ALB
+
+- **Configuration (ENV variables):**  
+  - `DB_CONN`  
+  - `REDIS_CONN`  
+  - `BASE_URL`  
+  - `RATE_LIMIT`
+
+- **Schema migrations:**  
+  Flyway (or similar)
+
+- **Secrets:**  
+  Stored in Secret Manager (not plain ENV)
+
+---
+
+## 10. Risks & Mitigation
+
+- **Cache stampede:**  
+  Use TTL with jitter + lightweight locking
+
+- **Abuse (phishing, SSRF):**  
+  Validate URLs, block private/local domains
+
+- **Data growth:**  
+  Schedule cleanup for expired/inactive links
+
+- **Dependency failure:**  
+  Graceful fallback  
+  - Redis down → query DB  
+  - DB down → return 5xx (limited)
+
+---
+
+## 11. Definition of Done
+
+- All endpoints functional as per spec
+- Redirect P95 ≤ 150ms with ≤ 10% cache miss
+- Redis hit ratio ≥ 80% under realistic load
+- Rate limiting enforced for create API
+- Logs + metrics available in dashboard
+- Runbook for “Redis down / DB down” scenarios
