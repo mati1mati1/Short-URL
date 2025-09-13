@@ -1,0 +1,16 @@
+
+services/redirect-service/node_modules/
+services/api-service/node_modules/
+services/migrations-service/node_modules/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+.env
+
+*.log
+docker-compose.override.yml
+.docker/
+
+dist/
+build/
+coverage/

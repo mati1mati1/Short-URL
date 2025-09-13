@@ -1,0 +1,12 @@
+{
+  "name": "migrations-service",
+  "version": "1.0.0",
+  "scripts": {
+    "migrate:create": "node-pg-migrate create -f migration.config.js",
+    "migrate:up": "node-pg-migrate up -f migration.config.js",
+    "migrate:down": "node-pg-migrate down -f migration.config.js"
+  },
+  "devDependencies": {
+    "node-pg-migrate": "^6.2.2"
+  }
+}
