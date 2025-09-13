@@ -14,14 +14,14 @@ services:
       - "6379:6379"
 
   api:
+    env_file: .env 
     build:
       context: ./services/api-service
-      dockerfile: Dockerfile
-    container_name: link-service
-    env_file: .env 
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
+      dockerfile: Dockerfile.dev   
+    command: npm run dev
+    volumes:
+      - ./services/api-service:/app
+      - /app/node_modules
     depends_on:
       - db
 
@@ -37,10 +37,14 @@ services:
   redirect:
     build:
       context: ./services/redirect-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev   
+    command: npm run dev
     env_file: .env
     ports: ["8081:8081"]
     depends_on:
       - api
+    volumes:
+      - ./services/redirect-service:/app
+      - /app/node_modules
 volumes:
   pgdata:

@@ -1,12 +1,15 @@
-FROM node:20
+FROM node:20-alpine
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
 
-RUN npm install -g nodemon
+RUN npm ci --omit=dev
 
 COPY . .
 
-CMD ["nodemon", "--legacy-watch", "--ext", "ts,js,json", "--watch", "src", "src/index.ts"]
+RUN npm run build
+
+EXPOSE 3000
+
+CMD ["node", "dist/index.js"]
