@@ -38,16 +38,17 @@ services:
   
   redirect:
     build:
-      context: ./services/redirect-service
-      dockerfile: Dockerfile.dev   
+      context: .
+      dockerfile: ./services/redirect-service/Dockerfile.dev   
     command: npm run dev
     env_file: .env
     ports: ["8081:8081"]
     depends_on:
       - api
     volumes:
-      - ./services/redirect-service:/app
-      - /app/node_modules
+      - ./services/redirect-service/src:/app/src
+      - redirect_node_modules:/app/node_modules
+      - logs_volume:/app/logs
   otel-collector:
     image: otel/opentelemetry-collector:latest
     command: ["--config=/etc/otel-collector-config.yaml"]
@@ -59,4 +60,5 @@ services:
 volumes:
   pgdata:
   api_node_modules:
+  redirect_node_modules:
   logs_volume:
