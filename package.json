@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "workspaces": [
+    "services/*",
+    "packages/*"
+  ],
+  "packageManager": "npm@10"
+}

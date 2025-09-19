@@ -62,7 +62,8 @@ export async function resolveLink(slug: string) {
 
   const cached = await redis.get(cacheKey);
   if (cached) {
-    console.log(`Cache hit for ${slug}`);
+    const logger = require("../infra/logger").default;
+    logger.info({ slug }, `Cache hit for ${slug}`);
     return JSON.parse(cached);
   }
 

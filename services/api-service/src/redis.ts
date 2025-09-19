@@ -1,5 +1,7 @@
+
 import { createClient } from "redis";
 import type { RedisClientType } from "redis";
+import { logger } from "@short/observability";
 
 const client: RedisClientType = createClient({
   url: process.env.REDIS_URL,
@@ -8,15 +10,15 @@ const client: RedisClientType = createClient({
 
 async function connectRedis(): Promise<void> {
   try {
-    await client.connect();
-    console.log("✅ Successfully connected to Redis");
+  await client.connect();
+  logger.info("✅ Successfully connected to Redis");
   } catch (err) {
-    console.error("❌ Redis connection error:", err);
+  logger.error({ err }, "❌ Redis connection error");
   }
 }
 
 client.on("error", (err: Error) => {
-  console.error("Redis error:", err);
+  logger.error({ err }, "Redis error");
 });
 
 

@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import * as service from "../services/link.service.js";
+import { logger } from "@short/observability";
 import { createLinkSchema, updateLinkSchema } from "../validation/link.schema.js";
 
 const isValidSlug = (s: string) => !!s && s.length <= 16 && /^[A-Za-z0-9-_]+$/.test(s);
@@ -37,9 +38,9 @@ export async function resolveLink(req: Request, res: Response) {
 
   const compact = await service.resolveLink(slug);
   if (!compact) return res.status(404).json({ error: "not found" });
-  console.log(compact);
+  logger.info({ compact }, "Compact link object");
   res.setHeader("Cache-Control", "private, max-age=0, no-cache");
-  console.log(`Redirecting ${slug} → ${compact.u}`);
+  logger.info({ slug, url: compact.u }, `Redirecting ${slug} → ${compact.u}`);
   return res.redirect(302, compact.u);
 }
 
