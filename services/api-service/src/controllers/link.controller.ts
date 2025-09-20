@@ -28,8 +28,8 @@ export async function create(req: Request, res: Response) {
   try {
     logger.info({ target_url: parsed.data.target_url }, "Attempting to create link");
     const link = await service.createLink({ ...parsed.data, created_ip_hash });
-    logger.info({ slug: link.slug, short_url: buildShortUrl(link.slug), expires_at: link.expires_at, is_active: link.is_active }, "Successfully created short link");
-    res.status(201).json(link);
+    logger.info(link, "Successfully created short link");
+    res.status(201).json({slug: link.slug, short_url: buildShortUrl(link.slug), expires_at: link.expires_at, is_active: link.is_active});
   } catch (e: any) {
     if (e.code === "23505") {
       logger.warn({ target_url: parsed.data.target_url }, "Slug already exists");
@@ -91,7 +91,7 @@ export async function resolveLink(req: Request, res: Response) {
       logger.info({ slug }, "Link is inactive");
       return res.status(403).json({ error: "link inactive" });
     }
-    
+
     res.setHeader("Cache-Control", "private, max-age=0, no-cache");
     logger.info({ slug, url: compact.u }, `Redirecting ${slug} → ${compact.u}`);
     return res.redirect(302, compact.u);
