@@ -1,3 +1,5 @@
+import type { Span } from "@opentelemetry/api";
+import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { logger, countRedis } from "@short/observability";
 import { redis } from "./redis.js";
 import { getLinkBySlug } from "./db.js";
@@ -35,7 +37,7 @@ export async function resolveSlug(slug: string): Promise<LinkRecord | null> {
   const cacheKey = `${CACHE_PREFIX}${slug}`;
 
   try {
-    const cached = await redis.get(cacheKey);
+    const cached = await runWithSpan("redis.get", () => redis.get(cacheKey));
     if (cached) {
       countRedis("redirect_get", true);
       try {
@@ -72,9 +74,11 @@ export async function resolveSlug(slug: string): Promise<LinkRecord | null> {
       const shouldCache =
         record.is_active && (!record.expires_at || new Date(record.expires_at) > new Date());
       if (shouldCache) {
-        await redis.set(cacheKey, JSON.stringify({ u: record.target_url, x: record.expires_at, a: record.is_active }), {
-          EX: cacheTTL(),
-        });
+        await runWithSpan("redis.set", () =>
+          redis.set(cacheKey, JSON.stringify({ u: record.target_url, x: record.expires_at, a: record.is_active }), {
+            EX: cacheTTL(),
+          }),
+        );
         countRedis("redirect_set", true);
       } else {
         await redis.del(cacheKey).catch(() => undefined);
@@ -89,4 +93,21 @@ export async function resolveSlug(slug: string): Promise<LinkRecord | null> {
     logger.error({ error: error.message, slug }, "Database lookup for redirect failed");
     throw error;
   }
+}
+const tracer = trace.getTracer("redirect-service");
+
+async function runWithSpan<T>(name: string, fn: (span: Span) => Promise<T>): Promise<T> {
+  return tracer.startActiveSpan(name, async (span) => {
+    try {
+      const result = await fn(span);
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (error: any) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 }

@@ -1,8 +1,28 @@
 import { createHash, randomBytes } from "node:crypto";
+import type { Span } from "@opentelemetry/api";
+import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { pool } from "../db.js";
-import type { Link } from "../modules/link.js"
+import type { Link } from "../modules/link.js";
 import { redis } from "../redis.js";
 import { logger } from "@short/observability";
+
+const tracer = trace.getTracer("api-service");
+
+async function withSpan<T>(name: string, fn: (span: Span) => Promise<T>): Promise<T> {
+  return tracer.startActiveSpan(name, async (span) => {
+    try {
+      const result = await fn(span);
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (error: any) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
+}
 
 export function hashIp(ip: string): string {
   return createHash("sha256").update(ip).digest("hex");
@@ -59,21 +79,31 @@ export async function resolveLink(slug: string) {
   const cacheKey = `s:${slug}`;
 
   try {
-    const cached = await redis.get(cacheKey);
+    const cached = await withSpan("redis.get", () => redis.get(cacheKey));
     if (cached) {
       logger.info({ slug }, `Cache hit for ${slug}`);
       return JSON.parse(cached);
     }
 
     logger.debug({ slug }, "Cache miss, querying database");
-    const { rows } = await pool.query(
-      `SELECT slug, target_url, expires_at, is_active
-       FROM links
-       WHERE slug = $1
-         AND is_active = true
-         AND (expires_at IS NULL OR expires_at > now())`,
-      [slug]
-    );
+    const { rows } = await withSpan("db.select", (span) => {
+      span.setAttribute("db.system", "postgresql");
+      span.setAttribute("db.operation", "select");
+      span.setAttribute("db.table", "links");
+      span.setAttribute(
+        "db.statement",
+        "SELECT slug, target_url, expires_at, is_active FROM links WHERE slug = $1 AND is_active = true AND (expires_at IS NULL OR expires_at > now())",
+      );
+
+      return pool.query(
+        `SELECT slug, target_url, expires_at, is_active
+         FROM links
+         WHERE slug = $1
+           AND is_active = true
+           AND (expires_at IS NULL OR expires_at > now())`,
+        [slug],
+      );
+    });
 
     if (rows.length === 0) {
       logger.info({ slug }, "Link not found or inactive/expired");
@@ -90,7 +120,9 @@ export async function resolveLink(slug: string) {
     };
 
     if (link.is_active && (!link.expires_at || new Date(link.expires_at) > new Date())) {
-      await redis.set(cacheKey, JSON.stringify(cacheValue), { EX: cacheTTL() });
+      await withSpan("redis.set", () =>
+        redis.set(cacheKey, JSON.stringify(cacheValue), { EX: cacheTTL() }),
+      );
       logger.debug({ slug }, "Cached link for future requests");
     }
     
