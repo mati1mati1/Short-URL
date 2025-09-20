@@ -2,14 +2,12 @@ import "dotenv/config";
 import express from "express";
 import axios, { AxiosError } from "axios";
 import { API_BASE_URL, API_TIMEOUT_MS, PORT } from "./env.js";
-import { startTracing, logger } from "@short/observability";
+import { startTracing, logger, metricsMiddleware } from "@short/observability";
 
 await startTracing("redirect-service");
 const app = express();
 
 logger.info("🚀 Starting redirect service...");
-
-// HTTP request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   
@@ -39,7 +37,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Error handling middleware
 app.use((error: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   logger.error({
     error: error.message,
@@ -67,7 +64,7 @@ app.get("/:slug", async (req, res) => {
   }
 
   try {
-    const url = `${API_BASE_URL}/links/${encodeURIComponent(slug)}/resolve`;
+    const url = `${API_BASE_URL}/api/links/${encodeURIComponent(slug)}/resolve`;
     logger.info({ slug, apiUrl: url }, "Calling API service for redirect");
     
     const r = await axios.get(url, {
@@ -83,13 +80,11 @@ app.get("/:slug", async (req, res) => {
       contentType: r.headers["content-type"]
     }, `API response received for slug ${slug}`);
     
-    // Handle redirect responses from API
     if ((r.status === 302 || r.status === 301) && r.headers.location) {
       logger.info({ slug, targetUrl: r.headers.location }, `Redirecting to ${r.headers.location}`);
       return res.redirect(302, r.headers.location);
     }
 
-    // Handle JSON response with URL
     if (r.status === 200 && r.headers["content-type"]?.includes("application/json")) {
       const u = (r.data && (r.data.u || r.data.target_url)) as string | undefined;
       if (u) {
@@ -99,7 +94,6 @@ app.get("/:slug", async (req, res) => {
       logger.warn({ slug, responseData: r.data }, "JSON response but no valid URL found");
     }
 
-    // Handle not found
     if (r.status === 404) {
       logger.info({ slug }, "Link not found in API");
       return res.status(404).send("not found");
@@ -130,8 +124,7 @@ app.get("/:slug", async (req, res) => {
     return res.status(502).send("bad gateway");
   }
 });
-
-// Metrics endpoint
+app.use(metricsMiddleware);
 app.get("/metrics", async (req, res) => {
   logger.debug("Metrics endpoint requested");
   const client = await import("prom-client");
