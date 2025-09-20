@@ -1,9 +1,12 @@
 import "dotenv/config";
 import express from "express";
 import axios, { AxiosError } from "axios";
-import { API_BASE_URL, API_TIMEOUT_MS, PORT } from "./env.js";
 import { startTracing, logger, metricsMiddleware } from "@short/observability";
 
+export const PORT = Number(process.env.REDIRECT_PORT ?? 8081);
+export const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:3000";
+
+export const API_TIMEOUT_MS = Number(process.env.API_TIMEOUT_MS ?? 2000);
 await startTracing("redirect-service");
 const app = express();
 

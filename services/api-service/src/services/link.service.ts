@@ -8,30 +8,12 @@ export function hashIp(ip: string): string {
   return createHash("sha256").update(ip).digest("hex");
 }
 
-async function generateSlug(length = 7): Promise<string> {
+function generateSlug(length = 7): string {
   logger.info({ length }, "Generating unique slug");
-  
-  for (let i = 0; i < 3; i++) {
-      const slug = randomBytes(Math.ceil(length / 2))
-        .toString("hex")
-        .slice(0, length);    
-      
-      logger.debug({ slug, attempt: i + 1 }, "Checking slug availability");
-      const { rows } = await pool.query(
-        "SELECT 1 FROM links WHERE slug = $1",
-        [slug]
-      );
-      
-      if (rows.length === 0) {
-        logger.info({ slug }, "Generated unique slug");
-        return slug;
-      }
-      
-      logger.warn({ slug, attempt: i + 1 }, "Slug already exists, retrying");
-  }
-  
-  logger.error({ length }, "Failed to generate unique slug after 3 attempts");
-  throw new Error("Failed to generate unique slug after 3 attempts");
+  const slug = randomBytes(Math.ceil(length / 2))
+    .toString("hex")
+    .slice(0, length);    
+  return slug;
 }
 
 function cacheTTL(): number {
@@ -49,30 +31,25 @@ export async function createLink(input: {
   title?: string | null;
 }): Promise<Link> {
   logger.info({ target_url: input.target_url }, "Creating new link in database");
-  
-  const slug = await generateSlug(7);
+  for (let i = 0; i < 3; i++) {
+    const slug = generateSlug(7);
 
-  try {
     const result = await pool.query(
       `INSERT INTO links (id, slug, target_url, expires_at, is_active, created_ip_hash)
        VALUES (gen_random_uuid(), $1, $2, $3, COALESCE($4, true), $5)
+       ON CONFLICT (slug) DO NOTHING
        RETURNING slug, target_url::text, expires_at::text, is_active`,
-      [
-        slug,
-        input.target_url,
-        input.expires_at ?? null,
-        input.is_active ?? true,
-        input.created_ip_hash ?? null
-      ]
+      [slug, input.target_url, input.expires_at ?? null, input.is_active ?? true, input.created_ip_hash ?? null]
     );
 
-    const link = result.rows[0];
-    logger.info({ slug, target_url: input.target_url }, "Successfully created link in database");
-    return link;
-  } catch (error: any) {
-    logger.error({ error: error.message, target_url: input.target_url }, "Failed to create link in database");
-    throw error;
+    if (result.rowCount === 1) {
+      logger.info({ slug, target_url: input.target_url }, "Successfully created link in database");
+      return result.rows[0];
+    }
+
+    logger.warn({ slug, attempt: i + 1 }, "Slug collision, retrying");
   }
+  throw new Error("Failed to create link after 3 attempts");
 }
 
 
