@@ -47,7 +47,7 @@ describe("resolveLink", () => {
     const { resolveLink } = await servicePromise;
     const result = await resolveLink("abc123");
 
-    expect(result).toEqual(cached);
+    expect(result).toEqual({ u: "https://example.com", expires_at: null, is_active: true });
     expect(poolQuery).not.toHaveBeenCalled();
     expect(redisSet).not.toHaveBeenCalled();
   });
@@ -69,7 +69,7 @@ describe("resolveLink", () => {
     const { resolveLink } = await servicePromise;
     const result = await resolveLink("abc123");
 
-    expect(result).toEqual({ u: "https://example.com", x: null, a: true });
+    expect(result).toEqual({ u: "https://example.com", expires_at: null, is_active: true });
     expect(poolQuery).toHaveBeenCalledTimes(1);
     expect(redisSet).toHaveBeenCalledTimes(1);
   });

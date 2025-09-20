@@ -2,11 +2,11 @@ import express from "express";
 import type { Request, Response } from "express";
 import linkRouter from "./routes/link.routes.js";
 import logsRouter from "./routes/logs.routes.js";
-import { logger, metricsMiddleware } from "@short/observability";
+import { startTracing, logger, metricsMiddleware } from "@short/observability";
 import { httpLogger } from "./middlewares/http-logger.js";
 import { errorHandler, notFoundHandler } from "./middlewares/error-handler.js";
 
-export function createApp() {
+export async function buildApp() {
   const app = express();
 
   app.use(express.json());
@@ -15,7 +15,7 @@ export function createApp() {
   app.use("/api/links", linkRouter);
   app.use("/logs", logsRouter);
 
-  app.get("/metrics", async (_req: Request, res: Response) => {
+  app.get("/metrics", async (req: Request, res: Response) => {
     const client = await import("prom-client");
     res.set("Content-Type", client.default.register.contentType);
     res.end(await client.default.register.metrics());
@@ -30,4 +30,9 @@ export function createApp() {
   app.use(errorHandler);
 
   return app;
+}
+
+export async function buildTracedApp(serviceName = "api-service") {
+  await startTracing(serviceName);
+  return buildApp();
 }
